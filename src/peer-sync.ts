@@ -1,12 +1,13 @@
 import bitcoreP2p from "bitcore-p2p";
 import bitcoreLib from "bitcore-lib";
-import { SEEDS } from "./config.ts";
+import { PEER_COUNT, SEEDS } from "./config.ts";
 import {
   addHeader,
   beginBatch,
   chainSize,
   commitBatch,
   getTip,
+  hasHeader,
 } from "./chain-store.ts";
 
 const { Peer, Messages, Inventory } = bitcoreP2p;
@@ -14,46 +15,52 @@ const { Networks } = bitcoreLib;
 
 const messages = new Messages({ network: Networks.livenet });
 
-let syncing = false;
-let peer: InstanceType<typeof Peer>;
 let seedIndex = 0;
-let watchdog: NodeJS.Timeout | null = null;
 
-function armSyncWatchdog(): void {
-  clearSyncWatchdog();
-  watchdog = setTimeout(() => {
-    console.warn("peer stopped responding to getheaders, reconnecting");
-    peer.disconnect();
-  }, 10000);
-}
-
-function clearSyncWatchdog(): void {
-  if (watchdog) {
-    clearTimeout(watchdog);
-    watchdog = null;
-  }
-}
-
-function requestHeaders(fromHashHex: string): void {
-  const startHash = Buffer.from(fromHashHex, "hex").reverse();
-  peer.sendMessage(messages.GetHeaders({ starts: [startHash] }));
-}
-
-export function startPeerSync(): void {
+function nextHost(): string {
   const host = SEEDS[seedIndex % SEEDS.length];
   seedIndex += 1;
+  return host;
+}
+
+function connectToPeer(): void {
+  const host = nextHost();
+
+  let syncing = false;
+  let peer: InstanceType<typeof Peer>;
+  let watchdog: NodeJS.Timeout | null = null;
+
+  function armSyncWatchdog(): void {
+    clearSyncWatchdog();
+    watchdog = setTimeout(() => {
+      console.warn(`${host}: stopped responding to getheaders, reconnecting`);
+      peer.disconnect();
+    }, 10000);
+  }
+
+  function clearSyncWatchdog(): void {
+    if (watchdog) {
+      clearTimeout(watchdog);
+      watchdog = null;
+    }
+  }
+
+  function requestHeaders(fromHashHex: string): void {
+    const startHash = Buffer.from(fromHashHex, "hex").reverse();
+    peer.sendMessage(messages.GetHeaders({ starts: [startHash] }));
+  }
 
   peer = new Peer({ host, network: Networks.livenet });
 
   peer.on("ready", () => {
     console.log(
-      `connected to ${peer.host} (${peer.subversion}), peer height ${peer.bestHeight}`
+      `connected to ${host} (${peer.subversion}), peer height ${peer.bestHeight}`
     );
 
     const tip = getTip();
     if (peer.bestHeight < tip.height) {
       console.warn(
-        `peer is behind our tip (${peer.bestHeight} < ${tip.height}), reconnecting`
+        `${host}: peer is behind our tip (${peer.bestHeight} < ${tip.height}), reconnecting`
       );
       peer.disconnect();
       return;
@@ -82,11 +89,17 @@ export function startPeerSync(): void {
       for (const header of headers) {
         const obj = header.toObject();
         if (obj.prevHash !== prevHash) {
-          console.warn("header chain break from peer, discarding batch");
+          if (hasHeader(obj.hash)) {
+            // A faster peer already delivered this range; benign race, not an error.
+          } else {
+            console.warn(`${host}: header chain break from peer, discarding batch`);
+          }
+          syncing = false;
           return;
         }
         if (!header.validProofOfWork()) {
-          console.warn("invalid proof of work from peer, discarding batch");
+          console.warn(`${host}: invalid proof of work from peer, discarding batch`);
+          syncing = false;
           return;
         }
         height += 1;
@@ -113,7 +126,7 @@ export function startPeerSync(): void {
     } else {
       syncing = false;
       console.log(
-        `synced to height ${height}, holding last ${chainSize()} headers`
+        `${host}: synced to height ${height}, holding last ${chainSize()} headers`
       );
     }
   });
@@ -130,15 +143,21 @@ export function startPeerSync(): void {
   });
 
   peer.on("disconnect", () => {
-    console.log("peer disconnected, reconnecting in 3s");
+    console.log(`${host}: disconnected, reconnecting in 3s`);
     syncing = false;
     clearSyncWatchdog();
-    setTimeout(startPeerSync, 3000);
+    setTimeout(connectToPeer, 3000);
   });
 
   peer.on("error", (err) => {
-    console.warn("peer error:", err.message);
+    console.warn(`${host}: peer error:`, err.message);
   });
 
   peer.connect();
+}
+
+export function startPeerSync(): void {
+  for (let i = 0; i < PEER_COUNT; i++) {
+    connectToPeer();
+  }
 }

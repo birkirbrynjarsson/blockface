@@ -6,6 +6,7 @@ export const SEEDS = [
   "dnsseed.bluematt.me",
   "seed.bitcoinstats.com",
 ];
+export const PEER_COUNT = Number(process.env.PEER_COUNT) || 3;
 
 export const DB_PATH = process.env.DB_PATH ?? "./data/headers.sqlite";
 
