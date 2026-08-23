@@ -5,6 +5,9 @@
   "description": "Minimal headers-only Bitcoin P2P client serving the most recent block headers over HTTP",
   "type": "module",
   "main": "src/index.ts",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "node --watch src/index.ts",
     "start": "node src/index.ts",

@@ -1,6 +1,7 @@
 import http from "http";
 import { MAX_HEADERS, PORT } from "./config.ts";
 import { getRecentHeaders } from "./chain-store.ts";
+import { computeStats } from "./stats.ts";
 
 export function startHttpServer(): void {
   const server = http.createServer((req, res) => {
@@ -20,11 +21,18 @@ export function startHttpServer(): void {
       return;
     }
 
+    if (url.pathname === "/stats") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(computeStats()));
+      return;
+    }
+
     res.statusCode = 404;
     res.end("not found");
   });
 
   server.listen(PORT, () => {
     console.log(`serving recent headers at http://localhost:${PORT}/headers`);
+    console.log(`serving derived stats at http://localhost:${PORT}/stats`);
   });
 }

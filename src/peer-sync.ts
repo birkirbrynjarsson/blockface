@@ -3,10 +3,10 @@ import bitcoreLib from "bitcore-lib";
 import { SEEDS } from "./config.ts";
 import {
   addHeader,
+  beginBatch,
   chainSize,
+  commitBatch,
   getTip,
-  setTip,
-  trimChain,
 } from "./chain-store.ts";
 
 const { Peer, Messages, Inventory } = bitcoreP2p;
@@ -70,7 +70,6 @@ export function startPeerSync(): void {
     const headers = message.headers;
     if (headers.length === 0) {
       syncing = false;
-      trimChain();
       return;
     }
 
@@ -78,33 +77,35 @@ export function startPeerSync(): void {
     let height = tip.height;
     let prevHash = tip.hash;
 
-    for (const header of headers) {
-      const obj = header.toObject();
-      if (obj.prevHash !== prevHash) {
-        console.warn("header chain break from peer, discarding batch");
-        return;
+    beginBatch();
+    try {
+      for (const header of headers) {
+        const obj = header.toObject();
+        if (obj.prevHash !== prevHash) {
+          console.warn("header chain break from peer, discarding batch");
+          return;
+        }
+        if (!header.validProofOfWork()) {
+          console.warn("invalid proof of work from peer, discarding batch");
+          return;
+        }
+        height += 1;
+        addHeader({
+          height,
+          hash: obj.hash,
+          prevHash: obj.prevHash,
+          time: obj.time,
+          bits: obj.bits,
+          nonce: obj.nonce,
+          version: obj.version,
+          merkleRoot: obj.merkleRoot,
+          difficulty: header.getDifficulty(),
+        });
+        prevHash = obj.hash;
       }
-      if (!header.validProofOfWork()) {
-        console.warn("invalid proof of work from peer, discarding batch");
-        return;
-      }
-      height += 1;
-      addHeader({
-        height,
-        hash: obj.hash,
-        prevHash: obj.prevHash,
-        time: obj.time,
-        bits: obj.bits,
-        nonce: obj.nonce,
-        version: obj.version,
-        merkleRoot: obj.merkleRoot,
-        difficulty: header.getDifficulty(),
-      });
-      prevHash = obj.hash;
+    } finally {
+      commitBatch();
     }
-
-    setTip(height, prevHash);
-    trimChain();
 
     if (headers.length === 2000) {
       requestHeaders(prevHash);

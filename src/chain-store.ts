@@ -1,37 +1,79 @@
+import { DatabaseSync } from "node:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import type { HeaderRecord } from "./types.ts";
-import { CHECKPOINT_HASH, CHECKPOINT_HEIGHT, MAX_HEADERS } from "./config.ts";
+import { DB_PATH, GENESIS_HASH, GENESIS_HEIGHT } from "./config.ts";
 
-const chain = new Map<number, HeaderRecord>();
-let tipHeight = CHECKPOINT_HEIGHT;
-let tipHash = CHECKPOINT_HASH;
+mkdirSync(dirname(DB_PATH), { recursive: true });
+const db = new DatabaseSync(DB_PATH);
+
+db.exec("PRAGMA journal_mode = WAL");
+db.exec("PRAGMA synchronous = NORMAL");
+db.exec(`
+  CREATE TABLE IF NOT EXISTS headers (
+    height INTEGER PRIMARY KEY,
+    hash TEXT NOT NULL UNIQUE,
+    prevHash TEXT NOT NULL,
+    time INTEGER NOT NULL,
+    bits INTEGER NOT NULL,
+    nonce INTEGER NOT NULL,
+    version INTEGER NOT NULL,
+    merkleRoot TEXT NOT NULL,
+    difficulty REAL NOT NULL
+  )
+`);
+
+const insertStmt = db.prepare(`
+  INSERT OR IGNORE INTO headers
+    (height, hash, prevHash, time, bits, nonce, version, merkleRoot, difficulty)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const tipStmt = db.prepare(
+  "SELECT height, hash FROM headers ORDER BY height DESC LIMIT 1"
+);
+const recentStmt = db.prepare(
+  "SELECT * FROM headers ORDER BY height DESC LIMIT ?"
+);
+const countStmt = db.prepare("SELECT COUNT(*) AS count FROM headers");
 
 export function getTip(): { height: number; hash: string } {
-  return { height: tipHeight, hash: tipHash };
-}
-
-export function setTip(height: number, hash: string): void {
-  tipHeight = height;
-  tipHash = hash;
+  const row = tipStmt.get() as { height: number; hash: string } | undefined;
+  if (!row) return { height: GENESIS_HEIGHT, hash: GENESIS_HASH };
+  return row;
 }
 
 export function addHeader(record: HeaderRecord): void {
-  chain.set(record.height, record);
+  insertStmt.run(
+    record.height,
+    record.hash,
+    record.prevHash,
+    record.time,
+    record.bits,
+    record.nonce,
+    record.version,
+    record.merkleRoot,
+    record.difficulty
+  );
 }
 
-export function trimChain(): void {
-  if (chain.size <= MAX_HEADERS) return;
-  const heights = Array.from(chain.keys()).sort((a, b) => a - b);
-  const excess = heights.length - MAX_HEADERS;
-  for (let i = 0; i < excess; i++) chain.delete(heights[i]);
+export function beginBatch(): void {
+  db.exec("BEGIN");
+}
+
+export function commitBatch(): void {
+  db.exec("COMMIT");
 }
 
 export function getRecentHeaders(count: number): HeaderRecord[] {
-  const heights = Array.from(chain.keys())
-    .sort((a, b) => b - a)
-    .slice(0, count);
-  return heights.map((h) => chain.get(h)!);
+  return recentStmt.all(count) as unknown as HeaderRecord[];
 }
 
 export function chainSize(): number {
-  return chain.size;
+  const row = countStmt.get() as { count: number };
+  return row.count;
+}
+
+export function closeDb(): void {
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  db.close();
 }
