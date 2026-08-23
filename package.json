@@ -1,0 +1,21 @@
+{
+  "name": "block-clock-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal headers-only Bitcoin P2P client serving the most recent block headers over HTTP",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "node --watch src/index.ts",
+    "start": "node src/index.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bitcore-lib": "^10.10.7",
+    "bitcore-p2p": "^10.10.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^7.0.2"
+  }
+}
