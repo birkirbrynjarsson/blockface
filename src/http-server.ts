@@ -5,8 +5,6 @@ import { computeStats } from "./stats.ts";
 
 export function startHttpServer(): void {
   const server = http.createServer((req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
     if (url.pathname === "/headers") {
