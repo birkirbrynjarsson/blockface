@@ -10,6 +10,10 @@ const indexHtml = await readFile(
   new URL("./public/index.html", import.meta.url),
   "utf-8"
 );
+const clockHtml = await readFile(
+  new URL("./public/clock.html", import.meta.url),
+  "utf-8"
+);
 
 export const app = new Hono();
 
@@ -18,6 +22,7 @@ export const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({
 });
 
 app.get("/", (c) => c.html(indexHtml));
+app.get("/clock", (c) => c.html(clockHtml));
 
 app.get("/api/headers", (c) => {
   const count = Math.min(Number(c.req.query("count")) || 10, MAX_HEADERS);
