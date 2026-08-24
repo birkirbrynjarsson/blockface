@@ -16,8 +16,8 @@ and serves the most recent headers and derived chain stats over HTTP.
   It listens for `inv` announcements to pick up new blocks and reconnects
   automatically on disconnect or a stalled sync.
 - **Storage** (`src/chain-store.ts`) persists headers in a SQLite database
-  (via `bun:sqlite`) so the chain survives restarts, and emits a `tip` event
-  whenever a genuinely new header is written.
+  (via `better-sqlite3`) so the chain survives restarts, and emits a `tip`
+  event whenever a genuinely new header is written.
 - **HTTP server** (`src/app.ts`) is a [Hono](https://hono.dev) app that
   exposes the stored headers and some computed stats (difficulty,
   retarget/halving countdowns, estimated hashrate, etc. — see `src/stats.ts`)
@@ -30,25 +30,26 @@ inject an invalid chain.
 
 ## Requirements
 
-- [Bun](https://bun.com) >= 1.3
+- [Node.js](https://nodejs.org) >= 22 (runs the TypeScript sources directly,
+  no build step)
 
 ## Setup
 
 ```bash
-bun install
-bun start
+npm install
+npm start
 ```
 
 Or for development with auto-restart on file changes:
 
 ```bash
-bun dev
+npm run dev
 ```
 
 Type-check without emitting:
 
 ```bash
-bun run check
+npm run check
 ```
 
 ## Configuration

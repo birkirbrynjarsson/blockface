@@ -1,12 +1,7 @@
-import { createBunWebSocket } from "hono/bun";
-import type { ServerWebSocket } from "bun";
 import type { WSContext } from "hono/ws";
 import { chainEvents } from "./chain-store.ts";
 import { computeStats } from "./stats.ts";
 import type { HeaderRecord } from "./types.ts";
-
-export const { upgradeWebSocket, websocket } =
-  createBunWebSocket<ServerWebSocket>();
 
 const clients = new Set<WSContext>();
 

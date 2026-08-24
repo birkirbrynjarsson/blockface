@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { EventEmitter } from "node:events";
@@ -6,7 +6,7 @@ import type { HeaderRecord } from "./types.ts";
 import { DB_PATH, GENESIS_HASH, GENESIS_HEIGHT } from "./config.ts";
 
 mkdirSync(dirname(DB_PATH), { recursive: true });
-const db = new Database(DB_PATH, { create: true });
+const db = new Database(DB_PATH);
 
 // Emits "tip" with the new HeaderRecord whenever addHeader() persists a
 // header that wasn't already stored (i.e. a genuine chain extension).

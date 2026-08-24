@@ -1,14 +1,21 @@
+import { readFile } from "node:fs/promises";
 import { Hono } from "hono";
+import { createNodeWebSocket } from "@hono/node-ws";
 import { MAX_HEADERS } from "./config.ts";
 import { getHeaderByHeight, getRecentHeaders } from "./chain-store.ts";
 import { computeStats } from "./stats.ts";
-import { registerClient, unregisterClient, upgradeWebSocket } from "./ws.ts";
+import { registerClient, unregisterClient } from "./ws.ts";
 
-const indexHtml = await Bun.file(
-  new URL("./public/index.html", import.meta.url)
-).text();
+const indexHtml = await readFile(
+  new URL("./public/index.html", import.meta.url),
+  "utf-8"
+);
 
 export const app = new Hono();
+
+export const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({
+  app,
+});
 
 app.get("/", (c) => c.html(indexHtml));
 

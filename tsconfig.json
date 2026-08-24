@@ -7,7 +7,7 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "strict": true,
-    "types": ["bun", "node"]
+    "types": ["node"]
   },
   "include": ["src"]
 }
