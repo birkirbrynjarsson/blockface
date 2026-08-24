@@ -1,11 +1,16 @@
-import { DatabaseSync } from "node:sqlite";
+import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { EventEmitter } from "node:events";
 import type { HeaderRecord } from "./types.ts";
 import { DB_PATH, GENESIS_HASH, GENESIS_HEIGHT } from "./config.ts";
 
 mkdirSync(dirname(DB_PATH), { recursive: true });
-const db = new DatabaseSync(DB_PATH);
+const db = new Database(DB_PATH, { create: true });
+
+// Emits "tip" with the new HeaderRecord whenever addHeader() persists a
+// header that wasn't already stored (i.e. a genuine chain extension).
+export const chainEvents = new EventEmitter();
 
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA synchronous = NORMAL");
@@ -45,7 +50,7 @@ export function getTip(): { height: number; hash: string } {
 }
 
 export function addHeader(record: HeaderRecord): void {
-  insertStmt.run(
+  const { changes } = insertStmt.run(
     record.height,
     record.hash,
     record.prevHash,
@@ -56,6 +61,9 @@ export function addHeader(record: HeaderRecord): void {
     record.merkleRoot,
     record.difficulty
   );
+  if (changes > 0) {
+    chainEvents.emit("tip", record);
+  }
 }
 
 export function beginBatch(): void {

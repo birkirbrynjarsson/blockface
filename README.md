@@ -1,8 +1,12 @@
-# headernode
+# blockface
 
 A minimal headers-only Bitcoin P2P client. It connects to the Bitcoin mainnet
 peer network, syncs block headers (not full blocks), stores them in SQLite,
 and serves the most recent headers and derived chain stats over HTTP.
+
+> **Why "blockface"?** A pun on *clockface* — the live dashboard shows blocks
+> as ticks around a clock face, one every ~10 minutes, resetting at local
+> midnight. It's also literally accurate: the dial is made of blocks.
 
 ## How it works
 
@@ -12,10 +16,13 @@ and serves the most recent headers and derived chain stats over HTTP.
   It listens for `inv` announcements to pick up new blocks and reconnects
   automatically on disconnect or a stalled sync.
 - **Storage** (`src/chain-store.ts`) persists headers in a SQLite database
-  (via `node:sqlite`) so the chain survives restarts.
-- **HTTP server** (`src/http-server.ts`) exposes the stored headers and some
-  computed stats (difficulty, retarget/halving countdowns, estimated
-  hashrate, etc. — see `src/stats.ts`) as JSON.
+  (via `bun:sqlite`) so the chain survives restarts, and emits a `tip` event
+  whenever a genuinely new header is written.
+- **HTTP server** (`src/app.ts`) is a [Hono](https://hono.dev) app that
+  exposes the stored headers and some computed stats (difficulty,
+  retarget/halving countdowns, estimated hashrate, etc. — see `src/stats.ts`)
+  as JSON under `/api`, serves a small live dashboard at `/`, and pushes new
+  headers to it over a WebSocket at `/ws` (see `src/ws.ts`).
 
 Sync starts from the real Bitcoin genesis block and every header received
 afterwards is independently checked, so a malicious or buggy peer can't
@@ -23,26 +30,25 @@ inject an invalid chain.
 
 ## Requirements
 
-- Node.js >= 22.5 (uses the built-in `node:sqlite` module)
-- pnpm
+- [Bun](https://bun.com) >= 1.3
 
 ## Setup
 
 ```bash
-pnpm install
-pnpm start
+bun install
+bun start
 ```
 
 Or for development with auto-restart on file changes:
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 Type-check without emitting:
 
 ```bash
-pnpm check
+bun run check
 ```
 
 ## Configuration
@@ -56,15 +62,24 @@ Set via environment variables (see `src/config.ts`):
 | `PEER_COUNT`  | `3`                      | Number of peer connections to maintain        |
 | `DB_PATH`     | `./data/headers.sqlite`  | SQLite database file path                     |
 
+## Web dashboard
+
+`GET /` serves a small live dashboard that opens a WebSocket connection to
+`/ws` and shows the current tip, derived stats, and a live feed of headers as
+they arrive — no polling. The same connection is used to push updates the
+moment `chain-store.ts` records a new tip.
+
 ## HTTP API
 
-### `GET /headers?count=N`
+All JSON endpoints are under the `/api` prefix.
+
+### `GET /api/headers?count=N`
 
 Returns the `N` most recent headers (newest first), capped at `MAX_HEADERS`.
 Defaults to `10` if `count` is omitted.
 
 ```bash
-curl "http://localhost:8332/headers?count=5"
+curl "http://localhost:8332/api/headers?count=5"
 ```
 
 Each entry has the shape:
@@ -83,23 +98,23 @@ Each entry has the shape:
 }
 ```
 
-### `GET /headers/:height`
+### `GET /api/headers/:height`
 
 Returns the header at a specific block height, or `404` if it isn't stored
 locally.
 
 ```bash
-curl "http://localhost:8332/headers/900000"
+curl "http://localhost:8332/api/headers/900000"
 ```
 
-### `GET /stats`
+### `GET /api/stats`
 
 Returns derived chain statistics: current tip, time since last block,
 average block interval, difficulty, estimated hashrate, and blocks/estimated
 time until the next difficulty retarget and next halving.
 
 ```bash
-curl "http://localhost:8332/stats"
+curl "http://localhost:8332/api/stats"
 ```
 
 ## Notes
