@@ -1,5 +1,5 @@
 {
-  "name": "block-clock-server",
+  "name": "headernode",
   "version": "1.0.0",
   "private": true,
   "description": "Minimal headers-only Bitcoin P2P client serving the most recent block headers over HTTP",

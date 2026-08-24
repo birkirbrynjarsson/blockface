@@ -36,6 +36,7 @@ const recentStmt = db.prepare(
 );
 const countStmt = db.prepare("SELECT COUNT(*) AS count FROM headers");
 const hasHeaderStmt = db.prepare("SELECT 1 FROM headers WHERE hash = ? LIMIT 1");
+const byHeightStmt = db.prepare("SELECT * FROM headers WHERE height = ?");
 
 export function getTip(): { height: number; hash: string } {
   const row = tipStmt.get() as { height: number; hash: string } | undefined;
@@ -67,6 +68,10 @@ export function commitBatch(): void {
 
 export function getRecentHeaders(count: number): HeaderRecord[] {
   return recentStmt.all(count) as unknown as HeaderRecord[];
+}
+
+export function getHeaderByHeight(height: number): HeaderRecord | undefined {
+  return byHeightStmt.get(height) as HeaderRecord | undefined;
 }
 
 export function hasHeader(hash: string): boolean {

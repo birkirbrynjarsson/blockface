@@ -1,6 +1,6 @@
 import http from "http";
 import { MAX_HEADERS, PORT } from "./config.ts";
-import { getRecentHeaders } from "./chain-store.ts";
+import { getHeaderByHeight, getRecentHeaders } from "./chain-store.ts";
 import { computeStats } from "./stats.ts";
 
 export function startHttpServer(): void {
@@ -18,6 +18,21 @@ export function startHttpServer(): void {
 
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(result));
+      return;
+    }
+
+    const heightMatch = url.pathname.match(/^\/headers\/(\d+)$/);
+    if (heightMatch) {
+      const height = Number(heightMatch[1]);
+      const header = getHeaderByHeight(height);
+
+      res.setHeader("Content-Type", "application/json");
+      if (!header) {
+        res.statusCode = 404;
+        res.end(JSON.stringify({ error: "not found" }));
+        return;
+      }
+      res.end(JSON.stringify(header));
       return;
     }
 
