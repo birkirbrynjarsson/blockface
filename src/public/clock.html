@@ -15,8 +15,8 @@
         --accent: #f7931a;
         --good: #3ecf8e;
         --bad: #e5534b;
-        --mono: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas,
-          monospace;
+        --mono:
+          "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
       }
       @media (prefers-color-scheme: light) {
         :root {
@@ -35,8 +35,8 @@
         min-height: 100vh;
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         padding: 2rem 1.25rem 4rem;
         display: flex;
         flex-direction: column;
@@ -102,7 +102,7 @@
         align-items: baseline;
         justify-content: center;
         flex-wrap: wrap;
-        gap: 0.5rem 0.75rem;
+        gap: 0.5rem 0.4rem;
       }
       .block-time .hour-slot {
         font-family: var(--mono);
@@ -113,6 +113,15 @@
       }
       .block-time .hour-slot .colon {
         animation: blink 2s steps(1) infinite;
+      }
+      .block-time .hour-slot.overdue {
+        color: var(--bad);
+      }
+      .block-time .hour-slot .carry {
+        font-size: 0.32em;
+        font-weight: 700;
+        vertical-align: super;
+        margin-left: 0.05em;
       }
       .block-time .since {
         font-family: var(--mono);
@@ -195,10 +204,15 @@
 
       <section class="panel">
         <div class="block-time">
-          <span class="hour-slot" id="hour-slot">--<span class="colon">:</span>-</span>
+          <span class="hour-slot" id="hour-slot"
+            >--<span class="colon">:</span>-</span
+          >
           <span class="since" id="since">--:--</span>
         </div>
-        <div class="caption">block hour : block tick <span class="sub">&middot; since last block</span></div>
+        <div class="caption">
+          block hour : block tick
+          <span class="sub">&middot; since last block</span>
+        </div>
 
         <div class="offset" id="offset">—</div>
 
@@ -211,11 +225,13 @@
       </section>
 
       <footer>
-        Block hour advances every 6 blocks, block tick every block (~10m
-        apart) — both only move when a real block arrives. The counter next
-        to it is a stopwatch since that block, uncapped, so a late block
-        just keeps counting past 10:00. Offset shows how far that's drifted
-        from where wall-clock midnight would put it.
+        Block hour and block tick advance every 6 / every block (~10m apart)
+        based on confirmed blocks; the small counter is the minute and second
+        since that block. Past 10 minutes with no new block, the tick turns red
+        with a small "+N" for the ten-minute chunks carried over — read together
+        with the small counter, e.g. "+2" and "5:43" is 25:43 since the block.
+        Offset shows how far that's drifted from where wall-clock midnight would
+        put it.
       </footer>
     </main>
 
@@ -243,7 +259,7 @@
             0,
             0,
             0,
-            0
+            0,
           ).getTime() / 1000
         );
       }
@@ -272,7 +288,7 @@
         if (headers.length === 0) return;
         latestBlockTime = headers[0].time;
         blocksSinceMidnight = headers.filter(
-          (h) => h.time >= midnightUnix
+          (h) => h.time >= midnightUnix,
         ).length;
       }
 
@@ -297,21 +313,51 @@
         // so this can legitimately be negative — the block is stamped a few
         // minutes into the future. Don't clamp it away; count down instead.
         const secondsSinceLastBlock = nowSeconds - latestBlockTime;
-
-        // Primary display: block hour / hour slot. These only move when a
-        // real block arrives — never extrapolated from elapsed time.
-        const blockHour = Math.floor(blocksSinceMidnight / 6) % 24;
-        const blockSlot = blocksSinceMidnight % 6;
-        hourSlotEl.innerHTML = `${blockHour}<span class="colon">:</span>${blockSlot}`;
-
-        // Secondary display: an uncapped mm:ss stopwatch since that block —
-        // if the next block is late, this just keeps counting past 10:00.
-        // If the block is timestamped in the future, count down to it instead.
         const isFuture = secondsSinceLastBlock < 0;
-        const absSince = Math.abs(secondsSinceLastBlock);
-        const sinceM = Math.floor(absSince / 60);
-        const sinceS = Math.floor(absSince % 60);
-        sinceEl.textContent = `${isFuture ? "-" : ""}${sinceM}:${pad(sinceS)}`;
+
+        const confirmedHour = Math.floor(blocksSinceMidnight / 6) % 24;
+        const confirmedTick = blocksSinceMidnight % 6;
+
+        // Below 10 minutes since the last block, its minute reads as a
+        // natural extension of the tick (e.g. tick 3 + minute 4 → "34"
+        // minutes past the hour). Past 10 minutes there's no confirmed block
+        // to attach that to, so the extra ten-minute chunks carry into the
+        // big hour:tick display as a projected (not yet confirmed) tick,
+        // styled red via .overdue with a tiny "+N" superscript for the tens
+        // carried over. The small counter keeps showing single-digit
+        // minutes (the ones place), so badge + small counter together still
+        // read as the true total — "+2" and "5:43" is 25:43 since the block.
+        let displayHour = confirmedHour;
+        let displayTick = confirmedTick;
+        let tickCarry = 0;
+        let minuteDigit = 0;
+        let isOverdue = false;
+
+        if (!isFuture) {
+          const wholeMinutes = Math.floor(secondsSinceLastBlock / 60);
+          tickCarry = Math.floor(wholeMinutes / 10);
+          isOverdue = tickCarry > 0;
+          const totalTicks = confirmedTick + tickCarry;
+          displayTick = totalTicks % 6;
+          displayHour = (confirmedHour + Math.floor(totalTicks / 6)) % 24;
+          minuteDigit = wholeMinutes % 10;
+        }
+
+        const carryBadge = isOverdue
+          ? `<sup class="carry">+${tickCarry}</sup>`
+          : "";
+        hourSlotEl.innerHTML = `${displayHour}<span class="colon">:</span>${displayTick}${carryBadge}`;
+        hourSlotEl.classList.toggle("overdue", isOverdue);
+
+        // Secondary display: single minute digit + seconds since the last
+        // block. If the block is timestamped in the future, count down
+        // instead — that's the one case where minutes can show two digits,
+        // since there's no carry badge to pair it with.
+        const seconds = Math.floor(Math.abs(secondsSinceLastBlock) % 60);
+        const sinceMinutes = isFuture
+          ? Math.floor(Math.abs(secondsSinceLastBlock) / 60)
+          : minuteDigit;
+        sinceEl.textContent = `${isFuture ? "-" : ""}${sinceMinutes}:${pad(seconds)}`;
         sinceEl.classList.toggle("future", isFuture);
 
         // Offset (below) still needs a single running estimate of "what time
@@ -321,7 +367,7 @@
 
         const realSecondsSinceMidnight = nowSeconds - midnightUnix;
         const offsetSeconds = Math.round(
-          totalBlockSeconds - realSecondsSinceMidnight
+          totalBlockSeconds - realSecondsSinceMidnight,
         );
         const sign = offsetSeconds >= 0 ? "+" : "-";
         const abs = Math.abs(offsetSeconds);
