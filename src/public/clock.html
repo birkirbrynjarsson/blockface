@@ -256,7 +256,14 @@
         }
       }
 
-      async function loadRecentHeaders() {
+      // Re-derives blocksSinceMidnight/latestBlockTime from the server's own
+      // header list. Used both on first load and whenever the websocket
+      // reconnects — a dropped connection (tab backgrounded, laptop asleep)
+      // means "tip" broadcasts for any blocks found in between were missed,
+      // so incrementing from the old state would leave a permanent gap.
+      // Refetching and recomputing from scratch is simpler than tracking
+      // "which height did the client last see" and back-filling a delta.
+      async function syncFromServer() {
         const res = await fetch("/api/headers?count=200");
         const headers = await res.json(); // newest first
         if (headers.length === 0) return;
@@ -339,7 +346,10 @@
         const proto = location.protocol === "https:" ? "wss:" : "ws:";
         const ws = new WebSocket(`${proto}//${location.host}/ws`);
 
-        ws.addEventListener("open", () => setStatus("live"));
+        ws.addEventListener("open", () => {
+          setStatus("live");
+          syncFromServer().then(render);
+        });
         ws.addEventListener("close", () => {
           setStatus("down");
           setTimeout(connect, 2000);
@@ -354,11 +364,8 @@
         });
       }
 
-      loadRecentHeaders().then(() => {
-        render();
-        connect();
-        setInterval(render, 1000);
-      });
+      connect();
+      setInterval(render, 1000);
     </script>
   </body>
 </html>
