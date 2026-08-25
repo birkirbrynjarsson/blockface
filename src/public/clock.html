@@ -314,14 +314,14 @@
         sinceEl.textContent = `${isFuture ? "-" : ""}${sinceM}:${pad(sinceS)}`;
         sinceEl.classList.toggle("future", isFuture);
 
-        // Offset: compare the target pace (blocks seen so far * 10m) against
-        // real elapsed time. Deliberately excludes secondsSinceLastBlock —
-        // adding it would cancel out the "now" terms below and freeze this
-        // between blocks, when the point is that waiting past 10 minutes
-        // without a new block should keep making the drift worse in real time.
+        // Offset (below) still needs a single running estimate of "what time
+        // the block-clock would show" — reconstruct it from the same inputs.
+        const totalBlockSeconds =
+          blocksSinceMidnight * BLOCK_SECONDS + secondsSinceLastBlock;
+
         const realSecondsSinceMidnight = nowSeconds - midnightUnix;
         const offsetSeconds = Math.round(
-          blocksSinceMidnight * BLOCK_SECONDS - realSecondsSinceMidnight
+          totalBlockSeconds - realSecondsSinceMidnight
         );
         const sign = offsetSeconds >= 0 ? "+" : "-";
         const abs = Math.abs(offsetSeconds);
