@@ -121,6 +121,9 @@
         color: var(--muted);
         line-height: 1;
       }
+      .block-time .since.future {
+        color: var(--accent);
+      }
       @keyframes blink {
         50% {
           opacity: 0.25;
@@ -290,10 +293,10 @@
           return;
         }
 
-        const secondsSinceLastBlock = Math.max(
-          0,
-          nowSeconds - latestBlockTime
-        );
+        // Miners can nudge a block's timestamp forward to find a new hash,
+        // so this can legitimately be negative — the block is stamped a few
+        // minutes into the future. Don't clamp it away; count down instead.
+        const secondsSinceLastBlock = nowSeconds - latestBlockTime;
 
         // Primary display: block hour / hour slot. These only move when a
         // real block arrives — never extrapolated from elapsed time.
@@ -303,9 +306,13 @@
 
         // Secondary display: an uncapped mm:ss stopwatch since that block —
         // if the next block is late, this just keeps counting past 10:00.
-        const sinceM = Math.floor(secondsSinceLastBlock / 60);
-        const sinceS = Math.floor(secondsSinceLastBlock % 60);
-        sinceEl.textContent = `${sinceM}:${pad(sinceS)}`;
+        // If the block is timestamped in the future, count down to it instead.
+        const isFuture = secondsSinceLastBlock < 0;
+        const absSince = Math.abs(secondsSinceLastBlock);
+        const sinceM = Math.floor(absSince / 60);
+        const sinceS = Math.floor(absSince % 60);
+        sinceEl.textContent = `${isFuture ? "-" : ""}${sinceM}:${pad(sinceS)}`;
+        sinceEl.classList.toggle("future", isFuture);
 
         // Offset (below) still needs a single running estimate of "what time
         // the block-clock would show" — reconstruct it from the same inputs.
