@@ -57,7 +57,7 @@
       }
       main {
         width: 100%;
-        max-width: 520px;
+        max-width: 600px;
       }
       header.page {
         display: flex;
@@ -107,7 +107,7 @@
         background: var(--panel);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 2rem 1.5rem;
+        padding: 2.5rem 1.5rem;
         text-align: center;
       }
       .block-time {
@@ -115,7 +115,19 @@
         align-items: baseline;
         justify-content: center;
         flex-wrap: wrap;
-        gap: 0.5rem 0.4rem;
+        gap: 0.5rem 0.3rem;
+      }
+      .block-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      /* Hexad (hour) and block (tick) render as two independently-captioned
+         columns, sat right next to each other with no gap so together they
+         still read as one continuous "HH:T" number. */
+      .hour-row {
+        display: flex;
+        align-items: baseline;
       }
       /* Each digit group stacks a static dim "88:8"-style backdrop (all
          segments lit, like an unpowered LED display) behind the live
@@ -132,7 +144,7 @@
       }
       .block-time .hour-slot {
         font-family: var(--dseg);
-        font-size: clamp(2.75rem, 12vw, 4.5rem);
+        font-size: clamp(3.5rem, 16vw, 6rem);
         font-weight: 700;
         letter-spacing: 0.02em;
         line-height: 1;
@@ -145,7 +157,7 @@
       }
       .block-time .since {
         font-family: var(--dseg);
-        font-size: clamp(1.75rem, 8vw, 2.75rem);
+        font-size: clamp(2.25rem, 10.5vw, 3.75rem);
         font-weight: 400;
         color: var(--muted);
         line-height: 1;
@@ -164,8 +176,7 @@
       .block-time .since .carry-stack {
         position: absolute;
         bottom: 120%;
-        left: 56%;
-        transform: translateX(-50%);
+        right: 0;
         display: grid;
         font-family: var(--dseg);
         font-size: 0.42em;
@@ -192,10 +203,7 @@
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: var(--muted);
-        margin-top: 1rem;
-      }
-      .caption .sub {
-        opacity: 0.7;
+        margin-top: 0.9rem;
       }
       .offset {
         display: inline-block;
@@ -253,24 +261,35 @@
 
       <section class="panel">
         <div class="block-time">
-          <span class="digit-stack">
-            <span class="hour-slot ghost" aria-hidden="true"
-              >88<span class="colon">:</span>8</span
-            >
-            <span class="hour-slot" id="hour-slot"
-              >--<span class="colon">:</span>-</span
-            >
-          </span>
-          <span class="digit-stack">
-            <span class="since ghost" aria-hidden="true"
-              >8<span class="colon">:</span>88</span
-            >
-            <span class="since" id="since">--:--</span>
-          </span>
-        </div>
-        <div class="caption">
-          block hour : block tick
-          <span class="sub">&middot; since last block</span>
+          <div class="hour-row">
+            <div class="block-group">
+              <span class="digit-stack">
+                <span class="hour-slot ghost" aria-hidden="true">88</span>
+                <span class="hour-slot" id="hour-digits">--</span>
+              </span>
+              <div class="caption">hexad</div>
+            </div>
+            <div class="block-group">
+              <span class="digit-stack">
+                <span class="hour-slot ghost" aria-hidden="true"
+                  ><span class="colon">:</span>8</span
+                >
+                <span class="hour-slot" id="tick-digit"
+                  ><span class="colon">:</span>-</span
+                >
+              </span>
+              <div class="caption">block</div>
+            </div>
+          </div>
+          <div class="block-group">
+            <span class="digit-stack">
+              <span class="since ghost" aria-hidden="true"
+                >8<span class="colon">:</span>88</span
+              >
+              <span class="since" id="since">--:--</span>
+            </span>
+            <div class="caption">since last block</div>
+          </div>
         </div>
 
         <div class="offset" id="offset">—</div>
@@ -299,7 +318,8 @@
 
       const dot = document.getElementById("dot");
       const statusText = document.getElementById("status-text");
-      const hourSlotEl = document.getElementById("hour-slot");
+      const hourDigitsEl = document.getElementById("hour-digits");
+      const tickDigitEl = document.getElementById("tick-digit");
       const sinceEl = document.getElementById("since");
       const offsetEl = document.getElementById("offset");
       const statBlocks = document.getElementById("stat-blocks");
@@ -398,7 +418,8 @@
           minuteDigit = wholeMinutes % 10;
         }
 
-        hourSlotEl.innerHTML = `${pad(confirmedHour)}<span class="colon">:</span>${confirmedTick}`;
+        hourDigitsEl.textContent = pad(confirmedHour);
+        tickDigitEl.innerHTML = `<span class="colon">:</span>${confirmedTick}`;
 
         // Secondary display: single minute digit + seconds since the last
         // block. If the block is timestamped in the future, count down
