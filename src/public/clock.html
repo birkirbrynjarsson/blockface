@@ -117,11 +117,18 @@
       .block-time .hour-slot.overdue {
         color: var(--bad);
       }
+      .block-time .hour-slot .tick-wrap {
+        position: relative;
+        display: inline-block;
+      }
       .block-time .hour-slot .carry {
+        position: absolute;
+        top: -0.1em;
+        left: 100%;
+        margin-left: 0.05em;
         font-size: 0.32em;
         font-weight: 700;
-        vertical-align: super;
-        margin-left: 0.05em;
+        white-space: nowrap;
       }
       .block-time .since {
         font-family: var(--mono);
@@ -346,7 +353,7 @@
         const carryBadge = isOverdue
           ? `<sup class="carry">+${tickCarry}</sup>`
           : "";
-        hourSlotEl.innerHTML = `${displayHour}<span class="colon">:</span>${displayTick}${carryBadge}`;
+        hourSlotEl.innerHTML = `${displayHour}<span class="colon">:</span><span class="tick-wrap">${displayTick}${carryBadge}</span>`;
         hourSlotEl.classList.toggle("overdue", isOverdue);
 
         // Secondary display: single minute digit + seconds since the last
@@ -357,7 +364,7 @@
         const sinceMinutes = isFuture
           ? Math.floor(Math.abs(secondsSinceLastBlock) / 60)
           : minuteDigit;
-        sinceEl.textContent = `${isFuture ? "-" : ""}${sinceMinutes}:${pad(seconds)}`;
+        sinceEl.textContent = `${sinceMinutes}:${pad(seconds)}`;
         sinceEl.classList.toggle("future", isFuture);
 
         // Offset (below) still needs a single running estimate of "what time
