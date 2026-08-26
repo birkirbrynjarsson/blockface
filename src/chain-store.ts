@@ -40,8 +40,9 @@ const recentStmt = db.prepare(
   "SELECT * FROM headers ORDER BY height DESC LIMIT ?"
 );
 const countStmt = db.prepare("SELECT COUNT(*) AS count FROM headers");
-const hasHeaderStmt = db.prepare("SELECT 1 FROM headers WHERE hash = ? LIMIT 1");
 const byHeightStmt = db.prepare("SELECT * FROM headers WHERE height = ?");
+const heightForHashStmt = db.prepare("SELECT height FROM headers WHERE hash = ?");
+const deleteFromHeightStmt = db.prepare("DELETE FROM headers WHERE height >= ?");
 
 export function getTip(): { height: number; hash: string } {
   const row = tipStmt.get() as { height: number; hash: string } | undefined;
@@ -82,13 +83,46 @@ export function getHeaderByHeight(height: number): HeaderRecord | undefined {
   return byHeightStmt.get(height) as HeaderRecord | undefined;
 }
 
-export function hasHeader(hash: string): boolean {
-  return hasHeaderStmt.get(hash) !== undefined;
-}
-
 export function chainSize(): number {
   const row = countStmt.get() as { count: number };
   return row.count;
+}
+
+// Height of the header with this hash, so a peer's response can be checked
+// against our own storage even when it starts from an ancestor behind our
+// current tip (see buildLocator / deleteHeadersFromHeight below).
+export function getHeightForHash(hash: string): number | undefined {
+  if (hash === GENESIS_HASH) return GENESIS_HEIGHT;
+  const row = heightForHashStmt.get(hash) as { height: number } | undefined;
+  return row?.height;
+}
+
+// Rolls back everything at or above this height -- used when a peer's
+// headers connect to an ancestor behind our stored tip, meaning the chain
+// we'd been extending was reorged out and needs to be discarded.
+export function deleteHeadersFromHeight(height: number): void {
+  deleteFromHeightStmt.run(height);
+}
+
+// A Bitcoin Core-style block locator: the last 10 heights consecutively,
+// then exponentially larger gaps back to genesis. Sending the whole list
+// (not just our tip hash) lets a peer find the actual common ancestor even
+// if our stored chain has since been reorged out past our tip -- a single
+// tip hash gives the peer no way to recover from that and its reply would
+// just never connect to anything we have.
+export function buildLocator(): string[] {
+  const tip = getTip();
+  const locator: string[] = [];
+  let height = tip.height;
+  let step = 1;
+  while (height > GENESIS_HEIGHT) {
+    const hash = getHeaderByHeight(height)?.hash;
+    if (hash) locator.push(hash);
+    if (locator.length >= 10) step *= 2;
+    height -= step;
+  }
+  locator.push(GENESIS_HASH);
+  return locator;
 }
 
 export function closeDb(): void {

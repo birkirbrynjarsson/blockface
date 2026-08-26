@@ -4,10 +4,12 @@ import { PEER_COUNT, SEEDS } from "./config.ts";
 import {
   addHeader,
   beginBatch,
+  buildLocator,
   chainSize,
   commitBatch,
+  deleteHeadersFromHeight,
+  getHeightForHash,
   getTip,
-  hasHeader,
 } from "./chain-store.ts";
 
 const { Peer, Messages, Inventory } = bitcoreP2p;
@@ -45,9 +47,15 @@ function connectToPeer(): void {
     }
   }
 
-  function requestHeaders(fromHashHex: string): void {
-    const startHash = Buffer.from(fromHashHex, "hex").reverse();
-    peer.sendMessage(messages.GetHeaders({ starts: [startHash] }));
+  // Sends the full locator (not just the tip hash) so a peer that's ahead
+  // of a reorg we haven't caught up to yet can still find the actual
+  // common ancestor and reply with headers that connect there, instead of
+  // us just discarding an unrecognized batch forever. See buildLocator.
+  function requestHeaders(): void {
+    const locator = buildLocator().map((hex) =>
+      Buffer.from(hex, "hex").reverse()
+    );
+    peer.sendMessage(messages.GetHeaders({ starts: locator }));
   }
 
   peer = new Peer({ host, network: Networks.livenet });
@@ -67,7 +75,7 @@ function connectToPeer(): void {
     }
 
     syncing = true;
-    requestHeaders(tip.hash);
+    requestHeaders();
     armSyncWatchdog();
   });
 
@@ -80,27 +88,43 @@ function connectToPeer(): void {
       return;
     }
 
+    // The peer replies starting right after the last locator hash it
+    // recognized on its own best chain. That ancestor can be behind our
+    // stored tip if the chain we'd been extending was since reorged out --
+    // in which case roll back to it before writing the peer's chain.
+    const firstPrevHash = headers[0].toObject().prevHash;
+    const ancestorHeight = getHeightForHash(firstPrevHash);
+    if (ancestorHeight === undefined) {
+      console.warn(
+        `${host}: headers don't connect to any block we know, discarding batch`
+      );
+      syncing = false;
+      return;
+    }
+
     const tip = getTip();
-    let height = tip.height;
-    let prevHash = tip.hash;
+    let height = ancestorHeight;
+    let prevHash = firstPrevHash;
 
     beginBatch();
     try {
+      if (ancestorHeight < tip.height) {
+        console.warn(
+          `${host}: reorg detected, rolling back ${tip.height - ancestorHeight} ` +
+            `header(s) from height ${ancestorHeight + 1}`
+        );
+        deleteHeadersFromHeight(ancestorHeight + 1);
+      }
+
       for (const header of headers) {
         const obj = header.toObject();
         if (obj.prevHash !== prevHash) {
-          if (hasHeader(obj.hash)) {
-            // A faster peer already delivered this range; benign race, not an error.
-          } else {
-            console.warn(`${host}: header chain break from peer, discarding batch`);
-          }
-          syncing = false;
-          return;
+          console.warn(`${host}: header chain break mid-batch, discarding rest`);
+          break;
         }
         if (!header.validProofOfWork()) {
-          console.warn(`${host}: invalid proof of work from peer, discarding batch`);
-          syncing = false;
-          return;
+          console.warn(`${host}: invalid proof of work from peer, discarding rest`);
+          break;
         }
         height += 1;
         addHeader({
@@ -121,7 +145,8 @@ function connectToPeer(): void {
     }
 
     if (headers.length === 2000) {
-      requestHeaders(prevHash);
+      syncing = true;
+      requestHeaders();
       armSyncWatchdog();
     } else {
       syncing = false;
@@ -137,7 +162,7 @@ function connectToPeer(): void {
     );
     if (hasBlock && !syncing) {
       syncing = true;
-      requestHeaders(getTip().hash);
+      requestHeaders();
       armSyncWatchdog();
     }
   });
