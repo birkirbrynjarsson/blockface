@@ -151,7 +151,7 @@
         line-height: 1;
       }
       .block-time .since.future {
-        color: var(--accent);
+        color: var(--good);
       }
       /* The carry badge sits directly above the since-counter's minute
          digit, in the same segmented font — a dim "+8" ghost is always
@@ -180,7 +180,7 @@
         opacity: 0.14;
       }
       .block-time .since .carry-live {
-        color: var(--bad);
+        color: var(--accent);
       }
       @keyframes blink {
         50% {
@@ -374,7 +374,11 @@
         const secondsSinceLastBlock = nowSeconds - latestBlockTime;
         const isFuture = secondsSinceLastBlock < 0;
 
-        const confirmedHour = Math.floor(blocksSinceMidnight / 6) % 24;
+        // Not wrapped at 24 — a day can carry more than 144 blocks (blocks
+        // aren't exactly 10 minutes apart), and when it does the hour
+        // should just keep counting (24, 25, …) rather than rolling back
+        // to 0 on its own. Only a real local midnight resets the count.
+        const confirmedHour = Math.floor(blocksSinceMidnight / 6);
         const confirmedTick = blocksSinceMidnight % 6;
 
         // Below 10 minutes since the last block, its minute reads as a
@@ -400,14 +404,14 @@
         // block. If the block is timestamped in the future, count down
         // instead — that's the one case where minutes can show two digits,
         // since there's no carry badge to pair it with. The carry badge
-        // itself always renders a dim "+8" ghost above the minute digit,
+        // itself always renders a dim "8" ghost above the minute digit,
         // overlaid with a live "+N" once there's an actual carry.
         const seconds = Math.floor(Math.abs(secondsSinceLastBlock) % 60);
         const sinceMinutes = isFuture
           ? Math.floor(Math.abs(secondsSinceLastBlock) / 60)
           : minuteDigit;
-        const carryLive = tickCarry > 0 ? `+${tickCarry}` : "";
-        sinceEl.innerHTML = `<span class="minute-wrap"><span class="carry-stack"><span class="carry-ghost" aria-hidden="true">+8</span><span class="carry-live">${carryLive}</span></span>${sinceMinutes}</span>:${pad(seconds)}`;
+        const carryLive = tickCarry > 0 ? `${tickCarry}` : "";
+        sinceEl.innerHTML = `<span class="minute-wrap"><span class="carry-stack"><span class="carry-ghost" aria-hidden="true">8</span><span class="carry-live">${carryLive}</span></span>${sinceMinutes}</span>:${pad(seconds)}`;
         sinceEl.classList.toggle("future", isFuture);
 
         // Offset: how far the block-clock has drifted from wall-clock
@@ -416,11 +420,21 @@
         // exactly one carry's worth (10 minutes) each time tickCarry ticks
         // up, so a long wait for the next block still makes it worse —
         // just in discrete 10-minute drops instead of a continuous slide.
+        //
+        // Exception: while the latest block is still future-timestamped
+        // (isFuture), confirmedOffsetSeconds treats that not-yet-reached
+        // moment as if it were already "now", overstating how far ahead we
+        // are. Go live for that window instead — subtract the (negative)
+        // secondsSinceLastBlock so it ticks every second and converges
+        // exactly onto confirmedOffsetSeconds the moment the countdown
+        // hits zero and a normal block is confirmed.
         const confirmedOffsetSeconds =
           blocksSinceMidnight * BLOCK_SECONDS -
           (latestBlockTime - midnightUnix);
         const offsetSeconds = Math.round(
-          confirmedOffsetSeconds - tickCarry * BLOCK_SECONDS,
+          isFuture
+            ? confirmedOffsetSeconds - secondsSinceLastBlock
+            : confirmedOffsetSeconds - tickCarry * BLOCK_SECONDS,
         );
         const sign = offsetSeconds >= 0 ? "+" : "-";
         const abs = Math.abs(offsetSeconds);
