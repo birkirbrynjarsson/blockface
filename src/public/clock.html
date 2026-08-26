@@ -152,7 +152,7 @@
       .block-time .hour-slot.ghost {
         color: var(--muted);
       }
-      .block-time .hour-slot .colon {
+      .block-time .colon {
         animation: blink 2s steps(1) infinite;
       }
       .block-time .since {
@@ -269,14 +269,11 @@
               </span>
               <div class="caption">hexad</div>
             </div>
+            <span class="hour-slot colon" aria-hidden="true">:</span>
             <div class="block-group">
               <span class="digit-stack">
-                <span class="hour-slot ghost" aria-hidden="true"
-                  ><span class="colon">:</span>8</span
-                >
-                <span class="hour-slot" id="tick-digit"
-                  ><span class="colon">:</span>-</span
-                >
+                <span class="hour-slot ghost" aria-hidden="true">8</span>
+                <span class="hour-slot" id="tick-digit">-</span>
               </span>
               <div class="caption">block</div>
             </div>
@@ -303,13 +300,13 @@
       </section>
 
       <footer>
-        Block hour and block tick advance every 6 / every block (~10m apart)
-        based on confirmed blocks; the small counter is the minute and second
-        since that block. Past 10 minutes with no new block, a small "+N"
-        appears for the ten-minute chunks piling up — read together with the
-        small counter, e.g. "+2" and "5:43" is 25:43 since the block. Offset
-        shows how far that's drifted from where wall-clock midnight would put
-        it.
+        Bitcoin blocks land roughly every 10 minutes — six of them make one
+        block hour, the way 60 real minutes do. blockface reads that rhythm
+        as a clock: hexad is the hour, block is the ten-minute tick within
+        it. It only resembles a real clock because it isn't one — blocks
+        arrive unevenly, so the counter beside it fills the gap with real
+        elapsed time, and the offset below tracks exactly how far this
+        block-paced clock has drifted from the one on your wall.
       </footer>
     </main>
 
@@ -419,7 +416,7 @@
         }
 
         hourDigitsEl.textContent = pad(confirmedHour);
-        tickDigitEl.innerHTML = `<span class="colon">:</span>${confirmedTick}`;
+        tickDigitEl.textContent = `${confirmedTick}`;
 
         // Secondary display: single minute digit + seconds since the last
         // block. If the block is timestamped in the future, count down
