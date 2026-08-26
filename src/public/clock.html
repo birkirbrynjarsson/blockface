@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>blockface — clock</title>
     <style>
+      @font-face {
+        font-family: "DSEG7Classic";
+        src: url("/fonts/DSEG7Classic-Regular.woff2") format("woff2");
+        font-weight: 400;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "DSEG7Classic";
+        src: url("/fonts/DSEG7Classic-Bold.woff2") format("woff2");
+        font-weight: 700;
+        font-display: swap;
+      }
       :root {
         color-scheme: light dark;
         --bg: #0b0e11;
@@ -17,6 +29,7 @@
         --bad: #e5534b;
         --mono:
           "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+        --dseg: "DSEG7Classic", var(--mono);
       }
       @media (prefers-color-scheme: light) {
         :root {
@@ -104,41 +117,70 @@
         flex-wrap: wrap;
         gap: 0.5rem 0.4rem;
       }
+      /* Each digit group stacks a static dim "88:8"-style backdrop (all
+         segments lit, like an unpowered LED display) behind the live
+         digits, grid-overlaid so both layers share the exact same box. */
+      .digit-stack {
+        display: grid;
+      }
+      .digit-stack > * {
+        grid-area: 1 / 1;
+      }
+      .digit-stack .ghost {
+        opacity: 0.14;
+        user-select: none;
+      }
       .block-time .hour-slot {
-        font-family: var(--mono);
+        font-family: var(--dseg);
         font-size: clamp(2.75rem, 12vw, 4.5rem);
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.02em;
         line-height: 1;
+      }
+      .block-time .hour-slot.ghost {
+        color: var(--muted);
       }
       .block-time .hour-slot .colon {
         animation: blink 2s steps(1) infinite;
       }
-      .block-time .hour-slot.overdue {
-        color: var(--bad);
-      }
-      .block-time .hour-slot .tick-wrap {
-        position: relative;
-        display: inline-block;
-      }
-      .block-time .hour-slot .carry {
-        position: absolute;
-        top: -0.1em;
-        left: 100%;
-        margin-left: 0.05em;
-        font-size: 0.32em;
-        font-weight: 700;
-        white-space: nowrap;
-      }
       .block-time .since {
-        font-family: var(--mono);
+        font-family: var(--dseg);
         font-size: clamp(1.75rem, 8vw, 2.75rem);
-        font-weight: 500;
+        font-weight: 400;
         color: var(--muted);
         line-height: 1;
       }
       .block-time .since.future {
         color: var(--accent);
+      }
+      /* The carry badge sits directly above the since-counter's minute
+         digit, in the same segmented font — a dim "+8" ghost is always
+         there (matching the unlit-segment look everywhere else), and the
+         real "+N" overlays it in red once there's an actual carry. */
+      .block-time .since .minute-wrap {
+        position: relative;
+        display: inline-block;
+      }
+      .block-time .since .carry-stack {
+        position: absolute;
+        bottom: 120%;
+        left: 56%;
+        transform: translateX(-50%);
+        display: grid;
+        font-family: var(--dseg);
+        font-size: 0.42em;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .block-time .since .carry-stack > * {
+        grid-area: 1 / 1;
+      }
+      .block-time .since .carry-ghost {
+        color: var(--muted);
+        opacity: 0.14;
+      }
+      .block-time .since .carry-live {
+        color: var(--bad);
       }
       @keyframes blink {
         50% {
@@ -150,7 +192,7 @@
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: var(--muted);
-        margin-top: 0.6rem;
+        margin-top: 1rem;
       }
       .caption .sub {
         opacity: 0.7;
@@ -211,10 +253,20 @@
 
       <section class="panel">
         <div class="block-time">
-          <span class="hour-slot" id="hour-slot"
-            >--<span class="colon">:</span>-</span
-          >
-          <span class="since" id="since">--:--</span>
+          <span class="digit-stack">
+            <span class="hour-slot ghost" aria-hidden="true"
+              >88<span class="colon">:</span>8</span
+            >
+            <span class="hour-slot" id="hour-slot"
+              >--<span class="colon">:</span>-</span
+            >
+          </span>
+          <span class="digit-stack">
+            <span class="since ghost" aria-hidden="true"
+              >8<span class="colon">:</span>88</span
+            >
+            <span class="since" id="since">--:--</span>
+          </span>
         </div>
         <div class="caption">
           block hour : block tick
@@ -234,11 +286,11 @@
       <footer>
         Block hour and block tick advance every 6 / every block (~10m apart)
         based on confirmed blocks; the small counter is the minute and second
-        since that block. Past 10 minutes with no new block, the tick turns red
-        with a small "+N" for the ten-minute chunks carried over — read together
-        with the small counter, e.g. "+2" and "5:43" is 25:43 since the block.
-        Offset shows how far that's drifted from where wall-clock midnight would
-        put it.
+        since that block. Past 10 minutes with no new block, a small "+N"
+        appears for the ten-minute chunks piling up — read together with the
+        small counter, e.g. "+2" and "5:43" is 25:43 since the block. Offset
+        shows how far that's drifted from where wall-clock midnight would put
+        it.
       </footer>
     </main>
 
@@ -327,54 +379,48 @@
 
         // Below 10 minutes since the last block, its minute reads as a
         // natural extension of the tick (e.g. tick 3 + minute 4 → "34"
-        // minutes past the hour). Past 10 minutes there's no confirmed block
-        // to attach that to, so the extra ten-minute chunks carry into the
-        // big hour:tick display as a projected (not yet confirmed) tick,
-        // styled red via .overdue with a tiny "+N" superscript for the tens
-        // carried over. The small counter keeps showing single-digit
-        // minutes (the ones place), so badge + small counter together still
-        // read as the true total — "+2" and "5:43" is 25:43 since the block.
-        let displayHour = confirmedHour;
-        let displayTick = confirmedTick;
+        // minutes past the hour). Past 10 minutes, the hour:tick display
+        // stays put — it only moves on a real block — but a tiny "+N"
+        // badge appears for the ten-minute chunks that have piled up. The
+        // small counter keeps showing single-digit minutes (the ones
+        // place), so badge + small counter together still read as the
+        // true total — "+2" and "5:43" is 25:43 since the block.
         let tickCarry = 0;
         let minuteDigit = 0;
-        let isOverdue = false;
 
         if (!isFuture) {
           const wholeMinutes = Math.floor(secondsSinceLastBlock / 60);
           tickCarry = Math.floor(wholeMinutes / 10);
-          isOverdue = tickCarry > 0;
-          const totalTicks = confirmedTick + tickCarry;
-          displayTick = totalTicks % 6;
-          displayHour = (confirmedHour + Math.floor(totalTicks / 6)) % 24;
           minuteDigit = wholeMinutes % 10;
         }
 
-        const carryBadge = isOverdue
-          ? `<sup class="carry">+${tickCarry}</sup>`
-          : "";
-        hourSlotEl.innerHTML = `${displayHour}<span class="colon">:</span><span class="tick-wrap">${displayTick}${carryBadge}</span>`;
-        hourSlotEl.classList.toggle("overdue", isOverdue);
+        hourSlotEl.innerHTML = `${pad(confirmedHour)}<span class="colon">:</span>${confirmedTick}`;
 
         // Secondary display: single minute digit + seconds since the last
         // block. If the block is timestamped in the future, count down
         // instead — that's the one case where minutes can show two digits,
-        // since there's no carry badge to pair it with.
+        // since there's no carry badge to pair it with. The carry badge
+        // itself always renders a dim "+8" ghost above the minute digit,
+        // overlaid with a live "+N" once there's an actual carry.
         const seconds = Math.floor(Math.abs(secondsSinceLastBlock) % 60);
         const sinceMinutes = isFuture
           ? Math.floor(Math.abs(secondsSinceLastBlock) / 60)
           : minuteDigit;
-        sinceEl.textContent = `${sinceMinutes}:${pad(seconds)}`;
+        const carryLive = tickCarry > 0 ? `+${tickCarry}` : "";
+        sinceEl.innerHTML = `<span class="minute-wrap"><span class="carry-stack"><span class="carry-ghost" aria-hidden="true">+8</span><span class="carry-live">${carryLive}</span></span>${sinceMinutes}</span>:${pad(seconds)}`;
         sinceEl.classList.toggle("future", isFuture);
 
-        // Offset (below) still needs a single running estimate of "what time
-        // the block-clock would show" — reconstruct it from the same inputs.
-        const totalBlockSeconds =
-          blocksSinceMidnight * BLOCK_SECONDS + secondsSinceLastBlock;
-
-        const realSecondsSinceMidnight = nowSeconds - midnightUnix;
+        // Offset: how far the block-clock has drifted from wall-clock
+        // midnight, based on confirmed blocks. This stays fixed between
+        // blocks rather than creeping every second, but steps back by
+        // exactly one carry's worth (10 minutes) each time tickCarry ticks
+        // up, so a long wait for the next block still makes it worse —
+        // just in discrete 10-minute drops instead of a continuous slide.
+        const confirmedOffsetSeconds =
+          blocksSinceMidnight * BLOCK_SECONDS -
+          (latestBlockTime - midnightUnix);
         const offsetSeconds = Math.round(
-          totalBlockSeconds - realSecondsSinceMidnight,
+          confirmedOffsetSeconds - tickCarry * BLOCK_SECONDS,
         );
         const sign = offsetSeconds >= 0 ? "+" : "-";
         const abs = Math.abs(offsetSeconds);

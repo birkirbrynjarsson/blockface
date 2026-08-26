@@ -14,6 +14,12 @@ const clockHtml = await readFile(
   new URL("./public/clock.html", import.meta.url),
   "utf-8"
 );
+const dsegRegular = await readFile(
+  new URL("./public/fonts/DSEG7Classic-Regular.woff2", import.meta.url)
+);
+const dsegBold = await readFile(
+  new URL("./public/fonts/DSEG7Classic-Bold.woff2", import.meta.url)
+);
 
 export const app = new Hono();
 
@@ -23,6 +29,17 @@ export const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({
 
 app.get("/", (c) => c.html(indexHtml));
 app.get("/clock", (c) => c.html(clockHtml));
+
+app.get("/fonts/DSEG7Classic-Regular.woff2", (c) => {
+  c.header("Content-Type", "font/woff2");
+  c.header("Cache-Control", "public, max-age=31536000, immutable");
+  return c.body(dsegRegular);
+});
+app.get("/fonts/DSEG7Classic-Bold.woff2", (c) => {
+  c.header("Content-Type", "font/woff2");
+  c.header("Cache-Control", "public, max-age=31536000, immutable");
+  return c.body(dsegBold);
+});
 
 app.get("/api/headers", (c) => {
   const count = Math.min(Number(c.req.query("count")) || 10, MAX_HEADERS);
