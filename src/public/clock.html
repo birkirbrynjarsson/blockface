@@ -23,6 +23,7 @@
         --panel: #12161b;
         --border: #232933;
         --text: #e7ebf0;
+        --ghost: #2e3640;
         --muted: #8a95a5;
         --accent: #f7931a;
         --good: #3ecf8e;
@@ -37,6 +38,7 @@
           --panel: #ffffff;
           --border: #e2e5ea;
           --text: #171b21;
+          --ghost: #d1d5da;
           --muted: #626b79;
         }
       }
@@ -150,7 +152,7 @@
         line-height: 1;
       }
       .block-time .hour-slot.ghost {
-        color: var(--muted);
+        color: var(--ghost);
       }
       .block-time .colon {
         animation: blink 2s steps(1) infinite;
@@ -159,7 +161,7 @@
         font-family: var(--dseg);
         font-size: clamp(2.25rem, 10.5vw, 3.75rem);
         font-weight: 400;
-        color: var(--muted);
+        color: var(--ghost);
         line-height: 1;
       }
       .block-time .since.future {
@@ -187,7 +189,7 @@
         grid-area: 1 / 1;
       }
       .block-time .since .carry-ghost {
-        color: var(--muted);
+        color: var(--ghost);
         opacity: 0.14;
       }
       .block-time .since .carry-live {
@@ -283,7 +285,14 @@
               <span class="since ghost" aria-hidden="true"
                 >8<span class="colon">:</span>88</span
               >
-              <span class="since" id="since">--:--</span>
+              <span class="since" id="since">
+                <span class="minute-wrap">
+                  <span class="carry-stack"
+                    ><span class="carry-ghost" aria-hidden="true">8</span>
+                    <span class="carry-live"></span></span
+                  >-</span
+                >:--</span
+              >
             </span>
             <div class="caption">since last block</div>
           </div>
@@ -301,12 +310,12 @@
 
       <footer>
         Bitcoin blocks land roughly every 10 minutes — six of them make one
-        block hour, the way 60 real minutes do. blockface reads that rhythm
-        as a clock: hexad is the hour, block is the ten-minute tick within
-        it. It only resembles a real clock because it isn't one — blocks
-        arrive unevenly, so the counter beside it fills the gap with real
-        elapsed time, and the offset below tracks exactly how far this
-        block-paced clock has drifted from the one on your wall.
+        block hour, the way 60 real minutes do. blockface reads that rhythm as a
+        clock: hexad is the hour, block is the ten-minute tick within it. It
+        only resembles a real clock because it isn't one — blocks arrive
+        unevenly, so the counter beside it fills the gap with real elapsed time,
+        and the offset below tracks exactly how far this block-paced clock has
+        drifted from the one on your wall.
       </footer>
     </main>
 
