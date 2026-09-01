@@ -28,6 +28,8 @@
         --accent: #f7931a;
         --good: #3ecf8e;
         --bad: #e5534b;
+        --offset-ahead: #6fae8c;
+        --offset-behind: #c97b6f;
         --mono:
           "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
         --dseg: "DSEG7Classic", var(--mono);
@@ -168,7 +170,7 @@
         color: var(--ghost);
       }
       .block-time .since.future {
-        color: var(--good);
+        color: var(--offset-ahead);
       }
       /* The carry badge sits directly above the since-counter's minute
          digit, in the same segmented font — a dim "+8" ghost is always
@@ -210,24 +212,37 @@
         color: var(--muted);
         margin-top: 0.9rem;
       }
+      /* Offset floats above and right-aligned to the since-counter, out of
+         normal flow so it doesn't push the layout down — same idea as the
+         carry badge. A plain HH:mm:ss reading with no +/- sign, colored to
+         say which direction; leading zero groups (hours, then minutes) are
+         left blank so only the dim ghost shows through for them. */
+      .since-wrap {
+        position: relative;
+      }
+      .offset-stack {
+        position: absolute;
+        bottom: 120%;
+        right: 0;
+        text-align: right;
+        margin-right: 0.25rem;
+      }
       .offset {
-        display: inline-block;
-        margin-top: 1.5rem;
-        padding: 0.3rem 0.75rem;
-        border-radius: 999px;
-        font-family: var(--mono);
-        font-size: 0.85rem;
-        font-weight: 600;
-        background: color-mix(in srgb, var(--muted) 15%, transparent);
+        font-family: var(--dseg);
+        font-size: 1.05rem;
+        font-weight: 400;
+        line-height: 1;
         color: var(--muted);
+        white-space: pre;
+      }
+      .offset.ghost {
+        color: var(--ghost);
       }
       .offset.ahead {
-        background: color-mix(in srgb, var(--good) 18%, transparent);
-        color: var(--good);
+        color: var(--offset-ahead);
       }
       .offset.behind {
-        background: color-mix(in srgb, var(--bad) 18%, transparent);
-        color: var(--bad);
+        color: var(--offset-behind);
       }
       .grid {
         display: grid;
@@ -284,24 +299,28 @@
             </div>
           </div>
           <div class="block-group">
-            <span class="digit-stack">
-              <span class="since ghost" aria-hidden="true"
-                >8<span class="colon">:</span>88</span
-              >
-              <span class="since" id="since">
-                <span class="minute-wrap">
-                  <span class="carry-stack"
-                    ><span class="carry-ghost" aria-hidden="true">8</span>
-                    <span class="carry-live"></span></span
-                  >-</span
-                >:--</span
-              >
-            </span>
+            <div class="since-wrap">
+              <span class="digit-stack offset-stack">
+                <span class="offset ghost" aria-hidden="true">88:88:88</span>
+                <span class="offset" id="offset">--:--:--</span>
+              </span>
+              <span class="digit-stack">
+                <span class="since ghost" aria-hidden="true"
+                  >8<span class="colon">:</span>88</span
+                >
+                <span class="since" id="since">
+                  <span class="minute-wrap">
+                    <span class="carry-stack"
+                      ><span class="carry-ghost" aria-hidden="true">8</span>
+                      <span class="carry-live"></span></span
+                    >-</span
+                  >:--</span
+                >
+              </span>
+            </div>
             <div class="caption">since last block</div>
           </div>
         </div>
-
-        <div class="offset" id="offset">—</div>
 
         <div class="grid">
           <div class="stat">
@@ -466,16 +485,18 @@
             ? confirmedOffsetSeconds - secondsSinceLastBlock
             : confirmedOffsetSeconds - tickCarry * BLOCK_SECONDS,
         );
-        const sign = offsetSeconds >= 0 ? "+" : "-";
         const abs = Math.abs(offsetSeconds);
         const offH = Math.floor(abs / 3600);
         const offM = Math.floor((abs % 3600) / 60);
         const offS = abs % 60;
-        const offsetText =
-          offH > 0
-            ? `${sign}${offH}:${pad(offM)}:${pad(offS)}`
-            : `${sign}${offM}:${pad(offS)}`;
-        offsetEl.textContent = `${offsetText} ${offsetSeconds >= 0 ? "ahead" : "behind"}`;
+        // Leading zero groups are blanked (not "00") so the dim ghost
+        // shows through for them instead — same width either way, so it
+        // still lines up with the "88:88:88" backdrop underneath.
+        const hhText = offH > 0 ? `${offH}:` : "  ";
+        // only pad minutes if hours are present, so 0:05 reads as 5, not 05
+        const mmText =
+          offH > 0 ? pad(offM) + ":" : offM > 0 ? `${offM}:` : "  ";
+        offsetEl.textContent = `${hhText}${mmText}${pad(offS)}`;
         offsetEl.className =
           "offset " + (offsetSeconds >= 0 ? "ahead" : "behind");
 
