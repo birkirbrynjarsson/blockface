@@ -84,22 +84,6 @@
     padding: 4rem 1.5rem 6rem;
   }
 
-  .page-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 0.9rem;
-  }
-  .page-nav a {
-    font-family: var(--font-display);
-    font-size: 0.72rem;
-    color: var(--muted);
-    text-decoration: none;
-  }
-  .page-nav a:hover {
-    color: var(--text);
-  }
-
   .eyebrow {
     font-family: var(--font-display);
     font-size: 0.72rem;
@@ -107,7 +91,7 @@
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--accent);
-    margin: 0;
+    margin: 0 0 0.9rem;
   }
 
   h1 {
@@ -468,6 +452,26 @@
   footer a {
     color: var(--muted);
   }
+  .site-nav {
+    display: flex;
+    gap: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .site-nav a,
+  .site-nav .current {
+    font-size: 0.72rem;
+    text-decoration: none;
+  }
+  .site-nav a {
+    color: var(--muted);
+  }
+  .site-nav a:hover {
+    color: var(--text);
+  }
+  .site-nav .current {
+    color: var(--text);
+    font-weight: 600;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     * {
@@ -478,10 +482,7 @@
 </style>
 
 <main>
-  <div class="page-nav">
-    <p class="eyebrow">blockface &middot; data note</p>
-    <a href="/">&larr; blockface</a>
-  </div>
+  <p class="eyebrow">blockface &middot; data note</p>
   <h1>The ten minutes are a rumor</h1>
   <p class="dek">
     Every header this node has synced, genesis to tip — <strong>965,193</strong>
@@ -618,10 +619,17 @@
   </div>
 
   <footer>
-    Source: local full-history sync at ./data/headers.sqlite (965,194
-    headers, genesis → 2026-09-02), queried directly via the sqlite3 CLI —
-    <code style="font-family: inherit">time - LAG(time) OVER (ORDER BY height)</code>.
-    Chain covers 2009-01-09 through the current tip.
+    <nav class="site-nav" aria-label="site">
+      <a href="/">clock</a>
+      <a href="/dashboard">dashboard</a>
+      <span class="current" aria-current="page">block time</span>
+    </nav>
+    <p>
+      Source: local full-history sync at ./data/headers.sqlite (965,194
+      headers, genesis → 2026-09-02), queried directly via the sqlite3 CLI —
+      <code style="font-family: inherit">time - LAG(time) OVER (ORDER BY height)</code>.
+      Chain covers 2009-01-09 through the current tip.
+    </p>
   </footer>
 </main>
 

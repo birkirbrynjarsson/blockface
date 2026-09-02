@@ -31,8 +31,9 @@ export const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({
   app,
 });
 
-app.get("/", (c) => c.html(indexHtml));
+app.get("/", (c) => c.html(clockHtml));
 app.get("/clock", (c) => c.html(clockHtml));
+app.get("/dashboard", (c) => c.html(indexHtml));
 app.get("/block-time", (c) => c.html(blockTimeHtml));
 
 app.get("/fonts/DSEG7Classic-Regular.woff2", (c) => {

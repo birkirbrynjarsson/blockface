@@ -78,13 +78,26 @@
       h1 span {
         color: var(--accent);
       }
-      nav a {
-        color: var(--muted);
-        font-size: 0.85rem;
+      .site-nav {
+        display: flex;
+        justify-content: center;
+        gap: 1.25rem;
+        margin: 3rem 0;
+      }
+      .site-nav a,
+      .site-nav .current {
+        font-size: 0.8rem;
         text-decoration: none;
       }
-      nav a:hover {
+      .site-nav a {
+        color: var(--muted);
+      }
+      .site-nav a:hover {
         color: var(--text);
+      }
+      .site-nav .current {
+        color: var(--text);
+        font-weight: 600;
       }
       .status {
         display: flex;
@@ -305,7 +318,7 @@
         text-align: center;
         color: var(--muted);
         font-size: 0.75rem;
-        margin-top: 2rem;
+        margin-top: 3rem;
       }
       /* Recent block pace: one hexagon per block, colored by how its own
          gap compared to the 10m target — green faster, red slower, gray
@@ -425,9 +438,6 @@
       <header class="page">
         <h1><span>&#8383;</span> blockface</h1>
         <div class="status">
-          <nav>
-            <a href="/">&larr; dashboard</a>
-          </nav>
           <span class="dot" id="dot"></span>
           <span id="status-text">connecting&hellip;</span>
         </div>
@@ -539,6 +549,11 @@
           mined right now, changing as the wait grows.
         </p>
         <p>It looks like a clock, but it runs on Bitcoin time.</p>
+        <nav class="site-nav" aria-label="site">
+          <span class="current" aria-current="page">clock</span>
+          <a href="/dashboard">dashboard</a>
+          <a href="/block-time">block time</a>
+        </nav>
       </footer>
     </main>
 
