@@ -312,6 +312,85 @@
         font-size: 0.75rem;
         margin-top: 2rem;
       }
+      /* Recent block pace: one hexagon per block, colored by how its own
+         gap compared to the 10m target — green faster, red slower, gray
+         on-pace. Reuses --offset-ahead/--offset-behind, the same pair
+         already meaning "ahead"/"behind" on the offset readout above, so
+         the color language stays consistent across the page. */
+      .pace-row {
+        margin-top: 1.5rem;
+      }
+      .pace-row .caption {
+        margin-top: 0;
+        margin-bottom: 0.6rem;
+      }
+      .hexes {
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+        padding: 4px 2px 6px;
+        justify-content: center;
+      }
+      .hex {
+        flex: 0 0 auto;
+        width: 20px;
+        height: 22px;
+        clip-path: polygon(
+          50% 0%,
+          100% 25%,
+          100% 75%,
+          50% 100%,
+          0% 75%,
+          0% 25%
+        );
+        background: var(--ghost);
+        outline: none;
+        transition: transform 0.12s;
+      }
+      .hex:hover,
+      .hex:focus-visible {
+        transform: scale(1.15);
+      }
+      .pace-legend {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 0.6rem;
+        font-size: 0.68rem;
+        color: var(--muted);
+      }
+      .pace-legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .pace-legend .swatch {
+        width: 9px;
+        height: 9px;
+        border-radius: 2px;
+        display: inline-block;
+      }
+      .pace-tooltip {
+        position: fixed;
+        transform: translate(-50%, -100%);
+        background: var(--text);
+        color: var(--bg);
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        padding: 0.35rem 0.55rem;
+        border-radius: 6px;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.1s;
+        z-index: 10;
+      }
+      .pace-tooltip.visible {
+        opacity: 1;
+      }
+      .hidden {
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -319,7 +398,9 @@
       <header class="page">
         <h1><span>&#8383;</span> blockface</h1>
         <div class="status">
-          <nav><a href="/">&larr; dashboard</a></nav>
+          <nav>
+            <a href="/">&larr; dashboard</a>
+          </nav>
           <span class="dot" id="dot"></span>
           <span id="status-text">connecting&hellip;</span>
         </div>
@@ -368,13 +449,39 @@
           </div>
         </div>
 
-        <div class="grid">
+        <div class="pace-row">
+          <!-- <div class="caption">recent block pace</div> -->
+          <div class="hexes" id="hexes"></div>
+          <div class="pace-legend hidden">
+            <span
+              ><span
+                class="swatch"
+                style="background: var(--offset-ahead)"
+              ></span
+              >faster</span
+            >
+            <span
+              ><span class="swatch" style="background: var(--ghost)"></span
+              >~10m</span
+            >
+            <span
+              ><span
+                class="swatch"
+                style="background: var(--offset-behind)"
+              ></span
+              >slower</span
+            >
+          </div>
+        </div>
+
+        <div class="grid hidden">
           <div class="stat">
             <div class="label">Blocks today</div>
             <div class="value" id="stat-blocks">&mdash;</div>
           </div>
         </div>
       </section>
+      <div class="pace-tooltip" id="paceTooltip"></div>
 
       <footer>
         Bitcoin blocks land roughly every 10 minutes — six of them make one
@@ -383,12 +490,20 @@
         only resembles a real clock because it isn't one — blocks arrive
         unevenly, so the counter beside it fills the gap with real elapsed time,
         and the offset below tracks exactly how far this block-paced clock has
-        drifted from the one on your wall.
+        drifted from the one on your wall. The hexagons below are the last 24
+        blocks' own gaps, colored the same way — green ran faster than 10m, red
+        slower.
       </footer>
     </main>
 
     <script>
       const BLOCK_SECONDS = 600;
+      const HEX_COUNT = 17;
+      // Matches --offset-ahead / --offset-behind exactly — those two are
+      // the same hex in both themes (only the neutral midpoint, read live
+      // from --muted below, needs to track the current theme).
+      const PACE_FAST = "#6fae8c";
+      const PACE_SLOW = "#c97b6f";
 
       const dot = document.getElementById("dot");
       const statusText = document.getElementById("status-text");
@@ -397,10 +512,13 @@
       const sinceEl = document.getElementById("since");
       const offsetEl = document.getElementById("offset");
       const statBlocks = document.getElementById("stat-blocks");
+      const hexesEl = document.getElementById("hexes");
+      const paceTooltip = document.getElementById("paceTooltip");
 
       let blocksSinceMidnight = 0;
       let latestBlockTime = null; // unix seconds, from the header itself
       let midnightUnix = localMidnightUnix();
+      let hexData = []; // [{ height, delta }], oldest first
 
       function localMidnightUnix() {
         const now = new Date();
@@ -419,6 +537,106 @@
 
       function pad(n) {
         return String(n).padStart(2, "0");
+      }
+
+      function hexToRgb(hex) {
+        const v = parseInt(hex.slice(1), 16);
+        return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+      }
+
+      function lerpChannel(a, b, t) {
+        return Math.round(a + (b - a) * t);
+      }
+
+      // Fast blocks lean toward PACE_FAST, slow toward PACE_SLOW, exactly
+      // on the 10m target sits at the theme's neutral --muted. Uses a
+      // log2 ratio (not a linear one) so a block twice as fast and one
+      // twice as slow read as equally saturated, clamped at a 4x swing
+      // (~2.5m .. 40m) before the color maxes out.
+      function paceColor(deltaSeconds) {
+        const neutral = getComputedStyle(document.documentElement)
+          .getPropertyValue("--muted")
+          .trim();
+        const ratio = Math.max(deltaSeconds, 1) / BLOCK_SECONDS;
+        const t = Math.max(-1, Math.min(1, Math.log2(ratio) / 2));
+        const pole = t < 0 ? PACE_FAST : PACE_SLOW;
+        const [nr, ng, nb] = hexToRgb(neutral);
+        const [pr, pg, pb] = hexToRgb(pole);
+        const a = Math.abs(t);
+        return `rgb(${lerpChannel(nr, pr, a)}, ${lerpChannel(ng, pg, a)}, ${lerpChannel(nb, pb, a)})`;
+      }
+
+      function fmtPaceDuration(totalSeconds) {
+        const neg = totalSeconds < 0;
+        const abs = Math.round(Math.abs(totalSeconds));
+        const m = Math.floor(abs / 60);
+        const s = abs % 60;
+        return (neg ? "-" : "") + `${m}:${pad(s)}`;
+      }
+
+      function renderHexes() {
+        hexesEl.innerHTML = "";
+        hexData.forEach(({ height, delta }) => {
+          const hex = document.createElement("div");
+          hex.className = "hex";
+          hex.style.background = paceColor(delta);
+          hex.tabIndex = 0;
+          hex.setAttribute(
+            "aria-label",
+            `Block #${height.toLocaleString()}: ${fmtPaceDuration(delta)} since previous block`,
+          );
+
+          function showTip() {
+            paceTooltip.textContent = `#${height.toLocaleString()} · ${fmtPaceDuration(delta)}`;
+            paceTooltip.classList.add("visible");
+            const r = hex.getBoundingClientRect();
+            paceTooltip.style.left = r.left + r.width / 2 + "px";
+            paceTooltip.style.top = r.top - 6 + "px";
+          }
+          function hideTip() {
+            paceTooltip.classList.remove("visible");
+          }
+          hex.addEventListener("pointerenter", showTip);
+          hex.addEventListener("pointermove", showTip);
+          hex.addEventListener("pointerleave", hideTip);
+          hex.addEventListener("focus", showTip);
+          hex.addEventListener("blur", hideTip);
+
+          hexesEl.appendChild(hex);
+        });
+      }
+
+      // Fetches the last HEX_COUNT+1 headers to derive HEX_COUNT gaps (each
+      // gap needs the block before it). Used on load and on every websocket
+      // reconnect, same rationale as syncFromServer: a dropped connection
+      // means in-between "tip" pushes were missed, so the incremental
+      // pushHexBlock() path alone would leave a gap in the row.
+      async function loadHexes() {
+        const res = await fetch(`/api/headers?count=${HEX_COUNT + 1}`);
+        const headers = await res.json(); // newest first
+        if (headers.length < 2) return;
+        const data = [];
+        for (let i = 0; i < headers.length - 1; i++) {
+          data.push({
+            height: headers[i].height,
+            delta: headers[i].time - headers[i + 1].time,
+          });
+        }
+        hexData = data.reverse(); // oldest -> newest, left -> right
+        renderHexes();
+      }
+
+      // Appends one block onto the live end of the row using the tip time
+      // from *before* this header, i.e. before onNewHeader() overwrites
+      // latestBlockTime with it — call this first in the "tip" handler.
+      function pushHexBlock(header) {
+        if (latestBlockTime === null) return;
+        hexData.push({
+          height: header.height,
+          delta: header.time - latestBlockTime,
+        });
+        if (hexData.length > HEX_COUNT) hexData.shift();
+        renderHexes();
       }
 
       function onNewHeader(header) {
@@ -566,6 +784,7 @@
         ws.addEventListener("open", () => {
           setStatus("live");
           syncFromServer().then(render);
+          loadHexes();
         });
         ws.addEventListener("close", () => {
           setStatus("down");
@@ -576,6 +795,7 @@
         ws.addEventListener("message", (event) => {
           const msg = JSON.parse(event.data);
           if (msg.type === "tip") {
+            pushHexBlock(msg.header);
             onNewHeader(msg.header);
           }
         });

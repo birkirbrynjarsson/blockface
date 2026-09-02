@@ -15,8 +15,8 @@
         --accent: #f7931a;
         --good: #3ecf8e;
         --bad: #e5534b;
-        --mono: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas,
-          monospace;
+        --mono:
+          "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
       }
       @media (prefers-color-scheme: light) {
         :root {
@@ -35,8 +35,8 @@
         min-height: 100vh;
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         padding: 2rem 1.25rem 4rem;
       }
       main {
@@ -173,7 +173,11 @@
       <header class="page">
         <h1><span>&#8383;</span> blockface</h1>
         <div class="status">
-          <a href="/clock" style="color: inherit; text-decoration: none; margin-right: 0.75rem">clock &rarr;</a>
+          <a
+            href="/clock"
+            style="color: inherit; text-decoration: none; margin-right: 0.75rem"
+            >clock &rarr;</a
+          >
           <span class="dot" id="dot"></span>
           <span id="status-text">connecting&hellip;</span>
         </div>
@@ -247,7 +251,16 @@
 
       function fmtHashrate(hashesPerSecond) {
         if (!hashesPerSecond) return "—";
-        const units = ["H/s", "kH/s", "MH/s", "GH/s", "TH/s", "PH/s", "EH/s", "ZH/s"];
+        const units = [
+          "H/s",
+          "kH/s",
+          "MH/s",
+          "GH/s",
+          "TH/s",
+          "PH/s",
+          "EH/s",
+          "ZH/s",
+        ];
         let value = hashesPerSecond;
         let i = 0;
         while (value >= 1000 && i < units.length - 1) {
@@ -273,7 +286,7 @@
             ? Number(stats.difficulty).toExponential(2)
             : "—";
         document.getElementById("stat-hashrate").textContent = fmtHashrate(
-          stats.estimatedHashrate
+          stats.estimatedHashrate,
         );
         document.getElementById("stat-retarget").textContent =
           `${fmtInt.format(stats.blocksUntilRetarget)} blocks`;

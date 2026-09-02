@@ -14,6 +14,10 @@ const clockHtml = await readFile(
   new URL("./public/clock.html", import.meta.url),
   "utf-8"
 );
+const blockTimeHtml = await readFile(
+  new URL("./public/block-time.html", import.meta.url),
+  "utf-8"
+);
 const dsegRegular = await readFile(
   new URL("./public/fonts/DSEG7Classic-Regular.woff2", import.meta.url)
 );
@@ -29,6 +33,7 @@ export const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({
 
 app.get("/", (c) => c.html(indexHtml));
 app.get("/clock", (c) => c.html(clockHtml));
+app.get("/block-time", (c) => c.html(blockTimeHtml));
 
 app.get("/fonts/DSEG7Classic-Regular.woff2", (c) => {
   c.header("Content-Type", "font/woff2");
