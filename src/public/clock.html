@@ -120,53 +120,12 @@
       .dot.down {
         background: var(--bad);
       }
-      /* A thick wood-frame border. border-image ignores border-radius in
-         most browsers, so this uses the layered-background trick instead:
-         a solid-color layer clipped to padding-box paints the interior,
-         and grain gradients clipped to border-box show through only in
-         the border ring — both layers respect the same rounded corners. */
       .panel {
-        position: relative;
-        border: 12px solid transparent;
-        border-radius: 30px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
         padding: 2.5rem 1.5rem;
         text-align: center;
-        background:
-          linear-gradient(var(--panel), var(--panel)) padding-box,
-          linear-gradient(
-              100deg,
-              rgba(255, 255, 255, 0.08),
-              rgba(0, 0, 0, 0.15) 60%
-            )
-            border-box,
-          repeating-linear-gradient(
-              97deg,
-              #8a5a34 0px,
-              #8a5a34 3px,
-              #6e4426 3px,
-              #6e4426 5px,
-              #7c4e2c 5px,
-              #7c4e2c 9px,
-              #5c3820 9px,
-              #5c3820 11px,
-              #7c4e2c 11px,
-              #7c4e2c 16px
-            )
-            border-box;
-      }
-      /* The frame's inner seam: a pseudo-element sized to exactly the
-         padding-box (where the wood ends and content begins) casts its
-         own inset shadow there, so the content reads as recessed behind
-         the frame rather than the shadow just hugging the outer edge. */
-      .panel::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 15px;
-        box-shadow:
-          inset 0 3px 8px rgba(0, 0, 0, 0.5),
-          inset 0 -1px 2px rgba(255, 255, 255, 0.06);
-        pointer-events: none;
       }
       .block-time {
         display: flex;
