@@ -140,11 +140,6 @@
               #7c4e2c 16px
             )
             border-box;
-        box-shadow:
-          0 20px 45px rgba(0, 0, 0, 0.4),
-          0 6px 14px rgba(0, 0, 0, 0.3),
-          inset 0 2px 2px rgba(255, 255, 255, 0.12),
-          inset 0 -3px 6px rgba(0, 0, 0, 0.45);
       }
       /* The frame's inner seam: a pseudo-element sized to exactly the
          padding-box (where the wood ends and content begins) casts its
@@ -326,10 +321,22 @@
       }
       .hexes {
         display: flex;
+        align-items: center;
         gap: 4px;
         overflow-x: auto;
         padding: 4px 2px 6px;
         justify-content: center;
+      }
+      .hex-list {
+        display: flex;
+        gap: 4px;
+      }
+      .hex-sep {
+        flex: 0 0 auto;
+        width: 1px;
+        height: 22px;
+        background: var(--border);
+        margin: 0 1px;
       }
       .hex {
         flex: 0 0 auto;
@@ -350,6 +357,26 @@
       .hex:hover,
       .hex:focus-visible {
         transform: scale(1.15);
+      }
+      /* The block currently being mined has no confirmed gap yet — it
+         pulses instead of sitting static, so "still waiting" reads at a
+         glance even before you check its color or the tooltip. */
+      @keyframes hexPulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.45;
+        }
+      }
+      .hex.pending {
+        animation: hexPulse 1.6s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hex.pending {
+          animation: none;
+        }
       }
       .pace-legend {
         display: flex;
@@ -451,7 +478,11 @@
 
         <div class="pace-row">
           <!-- <div class="caption">recent block pace</div> -->
-          <div class="hexes" id="hexes"></div>
+          <div class="hexes">
+            <div class="hex-list" id="hexList"></div>
+            <div class="hex-sep" aria-hidden="true"></div>
+            <div class="hex pending" id="pendingHex" tabindex="0"></div>
+          </div>
           <div class="pace-legend hidden">
             <span
               ><span
@@ -484,21 +515,36 @@
       <div class="pace-tooltip" id="paceTooltip"></div>
 
       <footer>
-        Bitcoin blocks land roughly every 10 minutes — six of them make one
-        block hour, the way 60 real minutes do. blockface reads that rhythm as a
-        clock: hexad is the hour, block is the ten-minute tick within it. It
-        only resembles a real clock because it isn't one — blocks arrive
-        unevenly, so the counter beside it fills the gap with real elapsed time,
-        and the offset below tracks exactly how far this block-paced clock has
-        drifted from the one on your wall. The hexagons below are the last 24
-        blocks' own gaps, colored the same way — green ran faster than 10m, red
-        slower.
+        <p>
+          Bitcoin produces a block roughly every 10 minutes. Six blocks make a
+          <strong>block hour</strong>, or <strong>hexad</strong>.
+        </p>
+        <p>
+          <strong>blockface</strong> turns that rhythm into a clock. Instead of
+          hours and minutes, it counts
+          <strong>hexads and blocks from midnight</strong>, one block for each
+          ten-minute beat, six blocks to a hexad.
+        </p>
+        <p>
+          But Bitcoin doesn't keep perfect time. Blocks arrive when they arrive:
+          sometimes minutes apart, sometimes much longer. The timer beside the
+          clock shows how long the current block has been forming, while the
+          offset below shows how far block time has drifted from wall-clock
+          time.
+        </p>
+        <p>
+          The hexagons below show the intervals of the last 16 blocks. Green
+          blocks arrived faster than the 10 minute target; red blocks took
+          longer. The pulsing hexagon beyond the divider is the block being
+          mined right now, changing as the wait grows.
+        </p>
+        <p>It looks like a clock, but it runs on Bitcoin time.</p>
       </footer>
     </main>
 
     <script>
       const BLOCK_SECONDS = 600;
-      const HEX_COUNT = 17;
+      const HEX_COUNT = 16;
       // Matches --offset-ahead / --offset-behind exactly — those two are
       // the same hex in both themes (only the neutral midpoint, read live
       // from --muted below, needs to track the current theme).
@@ -512,13 +558,15 @@
       const sinceEl = document.getElementById("since");
       const offsetEl = document.getElementById("offset");
       const statBlocks = document.getElementById("stat-blocks");
-      const hexesEl = document.getElementById("hexes");
+      const hexListEl = document.getElementById("hexList");
+      const pendingHexEl = document.getElementById("pendingHex");
       const paceTooltip = document.getElementById("paceTooltip");
 
       let blocksSinceMidnight = 0;
       let latestBlockTime = null; // unix seconds, from the header itself
       let midnightUnix = localMidnightUnix();
       let hexData = []; // [{ height, delta }], oldest first
+      let pendingTooltipText = "";
 
       function localMidnightUnix() {
         const now = new Date();
@@ -574,20 +622,37 @@
         return (neg ? "-" : "") + `${m}:${pad(s)}`;
       }
 
+      // The clock's own hexad:block reading for a block that was the Nth
+      // confirmed since local midnight — same derivation render() uses for
+      // the live digits, just fed a historical count instead of the
+      // current one. Below 1 the block predates today's midnight, where
+      // the signature doesn't mean anything relative to today.
+      function blockSignature(count) {
+        if (count < 1) return "—:—";
+        return `${Math.floor(count / 6)}:${count % 6}`;
+      }
+
       function renderHexes() {
-        hexesEl.innerHTML = "";
-        hexData.forEach(({ height, delta }) => {
+        hexListEl.innerHTML = "";
+        const n = hexData.length;
+        hexData.forEach(({ delta }, i) => {
+          // hexData is oldest → newest; the last entry is always the
+          // current tip, so counting back from blocksSinceMidnight gives
+          // each entry's own confirmed-count-at-the-time.
+          const count = blocksSinceMidnight - (n - 1 - i);
+          const sig = blockSignature(count);
+
           const hex = document.createElement("div");
           hex.className = "hex";
           hex.style.background = paceColor(delta);
           hex.tabIndex = 0;
           hex.setAttribute(
             "aria-label",
-            `Block #${height.toLocaleString()}: ${fmtPaceDuration(delta)} since previous block`,
+            `${sig} — ${fmtPaceDuration(delta)} since previous block`,
           );
 
           function showTip() {
-            paceTooltip.textContent = `#${height.toLocaleString()} · ${fmtPaceDuration(delta)}`;
+            paceTooltip.textContent = `${sig} · ${fmtPaceDuration(delta)}`;
             paceTooltip.classList.add("visible");
             const r = hex.getBoundingClientRect();
             paceTooltip.style.left = r.left + r.width / 2 + "px";
@@ -602,8 +667,36 @@
           hex.addEventListener("focus", showTip);
           hex.addEventListener("blur", hideTip);
 
-          hexesEl.appendChild(hex);
+          hexListEl.appendChild(hex);
         });
+      }
+
+      function showPendingTip() {
+        paceTooltip.textContent = pendingTooltipText;
+        paceTooltip.classList.add("visible");
+        const r = pendingHexEl.getBoundingClientRect();
+        paceTooltip.style.left = r.left + r.width / 2 + "px";
+        paceTooltip.style.top = r.top - 6 + "px";
+      }
+      function hidePendingTip() {
+        paceTooltip.classList.remove("visible");
+      }
+      pendingHexEl.addEventListener("pointerenter", showPendingTip);
+      pendingHexEl.addEventListener("pointermove", showPendingTip);
+      pendingHexEl.addEventListener("pointerleave", hidePendingTip);
+      pendingHexEl.addEventListener("focus", showPendingTip);
+      pendingHexEl.addEventListener("blur", hidePendingTip);
+
+      // Colors and labels the not-yet-confirmed block live, every render
+      // tick — same paceColor scale as the confirmed hexes, fed the
+      // running elapsed time instead of a settled delta, so it starts
+      // near-neutral and drifts toward red the longer the wait runs.
+      function renderPendingHex(secondsSinceLastBlock) {
+        pendingHexEl.style.background = paceColor(secondsSinceLastBlock);
+        const sig = blockSignature(blocksSinceMidnight + 1);
+        const elapsed = fmtPaceDuration(Math.max(secondsSinceLastBlock, 0));
+        pendingTooltipText = `${sig} · mining, ${elapsed} elapsed`;
+        pendingHexEl.setAttribute("aria-label", pendingTooltipText);
       }
 
       // Fetches the last HEX_COUNT+1 headers to derive HEX_COUNT gaps (each
@@ -626,14 +719,17 @@
         renderHexes();
       }
 
-      // Appends one block onto the live end of the row using the tip time
-      // from *before* this header, i.e. before onNewHeader() overwrites
-      // latestBlockTime with it — call this first in the "tip" handler.
-      function pushHexBlock(header) {
-        if (latestBlockTime === null) return;
+      // Appends one block onto the live end of the row. Takes the previous
+      // tip's time explicitly rather than reading latestBlockTime itself,
+      // since the caller needs to run onNewHeader() first (so
+      // blocksSinceMidnight is already up to date for the hexad:block
+      // labels renderHexes() computes) — by then latestBlockTime has
+      // already been overwritten with this header's own time.
+      function pushHexBlock(header, prevTipTime) {
+        if (prevTipTime === null) return;
         hexData.push({
           height: header.height,
-          delta: header.time - latestBlockTime,
+          delta: header.time - prevTipTime,
         });
         if (hexData.length > HEX_COUNT) hexData.shift();
         renderHexes();
@@ -685,6 +781,8 @@
         // minutes into the future. Don't clamp it away; count down instead.
         const secondsSinceLastBlock = nowSeconds - latestBlockTime;
         const isFuture = secondsSinceLastBlock < 0;
+
+        renderPendingHex(secondsSinceLastBlock);
 
         // Not wrapped at 24 — a day can carry more than 144 blocks (blocks
         // aren't exactly 10 minutes apart), and when it does the hour
@@ -783,8 +881,13 @@
 
         ws.addEventListener("open", () => {
           setStatus("live");
-          syncFromServer().then(render);
-          loadHexes();
+          // loadHexes() needs blocksSinceMidnight already fresh (it labels
+          // each hex against it), so it waits on syncFromServer() rather
+          // than racing it.
+          syncFromServer().then(() => {
+            render();
+            loadHexes();
+          });
         });
         ws.addEventListener("close", () => {
           setStatus("down");
@@ -795,8 +898,9 @@
         ws.addEventListener("message", (event) => {
           const msg = JSON.parse(event.data);
           if (msg.type === "tip") {
-            pushHexBlock(msg.header);
+            const prevTipTime = latestBlockTime;
             onNewHeader(msg.header);
+            pushHexBlock(msg.header, prevTipTime);
           }
         });
       }
